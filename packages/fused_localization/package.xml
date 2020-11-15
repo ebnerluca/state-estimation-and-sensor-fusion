@@ -1,0 +1,11 @@
+<package>
+  <name>fused_localisation</name>
+  <version>0.1.0</version>
+  <description>
+  Estimates the state using both the encoders and the camera via april tags
+  </description>
+  <maintainer email="jonathan.n.peel@gmail.com">Jonathan Peel</maintainer>
+  <license>None</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+</package>
