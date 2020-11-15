@@ -41,6 +41,7 @@ class EncoderLocalisation(DTROS):
         """ TODO process the wheel encoder data into a transform
         """
 
+        self.tick_received_time = rospy.Time.now()
         rospy.loginfo(f"Recieved message from {wheel} wheel\n{msg}")
 
         # if (wheel == "left"):
@@ -79,7 +80,8 @@ class EncoderLocalisation(DTROS):
         while not rospy.is_shutdown():
             rospy.loginfo(f'Publishing transform ...')
             transform_msg = TransformStamped()
-            transform_msg.header.stamp = rospy.Time.now()
+            # time needs to be from the last wheel encoder tick
+            transform_msg.header.stamp = self.tick_received_time
 
             self.pub_transform.publish(transform_msg)
             rate.sleep() # main thread waits here between publishes
