@@ -6,6 +6,7 @@ from duckietown.dtros import DTROS, NodeType
 from std_msgs.msg import String, Float32
 from geometry_msgs.msg import TransformStamped
 from duckietown_msgs.msg import WheelEncoderStamped
+import yaml
 
 
 class EncoderLocalisation(DTROS):
@@ -18,6 +19,13 @@ class EncoderLocalisation(DTROS):
         self.veh_name = rospy.get_namespace().strip("/")
         rospy.loginfo(f"Using vehicle name {self.veh_name}")
 
+        # get baseline and radius
+        self.baseline, self.radius = self.get_calib_params()
+        rospy.loginfo(f'baseline: {self.baseline}, radius: {self.radius}')
+
+        # set encoder received flag
+        self.encoder_received = False
+
         # construct publisher 
         pub_topic = f'/{self.veh_name}/wheel_distance_left'
         self.pub_transform = rospy.Publisher(
@@ -29,19 +37,48 @@ class EncoderLocalisation(DTROS):
 
         self.sub_encoder_ticks_left = rospy.Subscriber(
             left_encoder_topic,
-            WheelEncoderStamped, self.cb_encoder_data, callback_args="left"
+            WheelEncoderStamped, self.cb_encoder_to_transform, callback_args="left"
             )
         self.sub_encoder_ticks_right = rospy.Subscriber(
             right_encoder_topic,
-            WheelEncoderStamped, self.cb_encoder_data, callback_args="right"
+            WheelEncoderStamped, self.cb_encoder_to_transform, callback_args="right"
             )
 
 
-    def cb_encoder_data(self, msg, wheel):
+    def get_calib_params(self):
+        """ Load baseline and radius from calibration folder on duckiebot
+        """
+        cali_folder = '/data/config/calibrations/kinematics'
+        cali_file = f'{cali_folder}/{self.veh_name}.yaml'
+
+        # Locate calibration yaml file or use the default otherwise
+        rospy.loginfo(f'Looking for calibration {cali_file}')
+        if not os.path.isfile(cali_file):
+            rospy.logwarn(f'Calibration not found: {cali_file}\n Using default instead.')
+            cali_file = (f'{cali_folder}/default.yaml')
+
+        # Shutdown if no calibration file not found
+        if not os.path.isfile(cali_file):
+            rospy.signal_shutdown("Found no calibration file ... aborting")
+
+        # Load the calibration file
+        with open(cali_file, 'r') as yaml_file:
+            yaml_dict = yaml.load(yaml_file, Loader=yaml.Loader)
+
+        baseline = yaml_dict['baseline']
+        radius = yaml_dict['radius']
+
+        rospy.loginfo(f'Using calibration file: {cali_file}')
+
+        return (baseline, radius)
+
+
+    def cb_encoder_to_transform(self, msg, wheel):
         """ TODO process the wheel encoder data into a transform
         """
 
-        self.tick_received_time = rospy.Time.now()
+        self.encoder_received = True
+        self.tick_received_time = rospy.Time.now() # record time for publishing
         rospy.loginfo(f"Recieved message from {wheel} wheel\n{msg}")
 
         # if (wheel == "left"):
@@ -77,13 +114,16 @@ class EncoderLocalisation(DTROS):
     def run(self):
         #TODO publish transform
         rate = rospy.Rate(30) # publish at 30Hz
-        while not rospy.is_shutdown():
-            rospy.loginfo(f'Publishing transform ...')
-            transform_msg = TransformStamped()
-            # time needs to be from the last wheel encoder tick
-            transform_msg.header.stamp = self.tick_received_time
 
-            self.pub_transform.publish(transform_msg)
+        while not rospy.is_shutdown():
+            # don't publish until first encoder message received ?good idea?
+            if self.encoder_received:
+                rospy.loginfo(f'Publishing transform ...')
+                transform_msg = TransformStamped()
+                # time needs to be from the last wheel encoder tick
+                transform_msg.header.stamp = self.tick_received_time
+                self.pub_transform.publish(transform_msg)
+
             rate.sleep() # main thread waits here between publishes
 
 if __name__ == '__main__':
