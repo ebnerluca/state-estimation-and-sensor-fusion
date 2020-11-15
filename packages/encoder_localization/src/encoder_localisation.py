@@ -78,7 +78,10 @@ class EncoderLocalisation(DTROS):
         rate = rospy.Rate(30) # publish at 30Hz
         while not rospy.is_shutdown():
             rospy.loginfo(f'Publishing transform ...')
-            # self.pub_transform.publish()
+            transform_msg = TransformStamped()
+            transform_msg.header.stamp = rospy.Time.now()
+
+            self.pub_transform.publish(transform_msg)
             rate.sleep() # main thread waits here between publishes
 
 if __name__ == '__main__':
