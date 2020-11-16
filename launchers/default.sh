@@ -13,7 +13,7 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # launching app
-dt-exec roslaunch encoder_localisation encoder_localisation.launch veh:="$VEHICLE_NAME"
+dt-exec roslaunch encoder_localization encoder_localization.launch veh:="$VEHICLE_NAME"
 
 
 # ----------------------------------------------------------------------------

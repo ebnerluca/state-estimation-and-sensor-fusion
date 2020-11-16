@@ -1,8 +1,0 @@
-<launch>
-  <arg name="veh"/>
-  <group ns="$(arg veh)">
-    <node pkg="encoder_localisation" type="encoder_localisation.py" name="encoder_localisation" output="screen">
-    </node>
-  </group>
-
-</launch>

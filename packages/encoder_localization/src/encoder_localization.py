@@ -11,11 +11,11 @@ import tf2_ros
 import numpy as np
 
 
-class EncoderLocalisation(DTROS):
+class EncoderLocalization(DTROS):
 
     def __init__(self, node_name):
         # initialize the DTROS parent class
-        super(EncoderLocalisation, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
+        super(EncoderLocalization, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
 
         # get vehicle name
         self.veh_name = rospy.get_namespace().strip("/")
@@ -40,7 +40,7 @@ class EncoderLocalisation(DTROS):
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
         # construct publisher 
-        pub_topic = f'/{self.veh_name}/encoder_localisation/transform'
+        pub_topic = f'/{self.veh_name}/encoder_localization/transform'
         self.pub_transform = rospy.Publisher(
             pub_topic, TransformStamped, queue_size=10)
         
@@ -156,6 +156,6 @@ class EncoderLocalisation(DTROS):
 
 if __name__ == '__main__':
     # create the node
-    node = EncoderLocalisation(node_name='encoder_localisation')
+    node = EncoderLocalization(node_name='encoder_localization')
     # run node
     node.run()
