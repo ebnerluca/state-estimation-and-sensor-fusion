@@ -25,8 +25,20 @@ class EncoderLocalization(DTROS):
         self.baseline, self.radius = self.get_calib_params()
         self.log(f'baseline: {self.baseline}, radius: {self.radius}')
 
-        # set encoder received flag
+        # initialize encoder variables
         self.encoder_received = False
+        self.encoder_resolution = 135
+
+        self.initialised_ticks_left = False
+        self.total_ticks_left = 0
+        self.initial_ticks_left = 0
+        self.wheel_distance_left = 0.0
+
+        self.initialised_ticks_right = False
+        self.total_ticks_right = 0
+        self.initial_ticks_right = 0
+        self.wheel_distance_right = 0.0
+
 
         # set initial transformation from map frame to baselink frame
         self.map_to_baselink = np.asarray(
@@ -35,6 +47,8 @@ class EncoderLocalization(DTROS):
             [0, 0, 1, 0],
             [0, 0, 0, 1]]
         )
+
+        self.theta = 0.0
 
         # construct broadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
@@ -90,38 +104,39 @@ class EncoderLocalization(DTROS):
         """ TODO process the wheel encoder data into a transform
         """
 
-        self.encoder_received = True
-        self.log(f"Recieved message from {wheel} wheel\n{msg}")
-
         # # copied below is code for finding the wheel distance for the estimator
-        # if (wheel == "left"):
+        if (wheel == "left"):
         #     # use flag for if ticks have not been recorded yet
-        #     if (not self.initialised_ticks_left):
-        #         self.total_ticks_left = msg.data
-        #         self.initial_ticks_left = msg.data
-        #         self.initialised_ticks_left = True
+            if (not self.initialised_ticks_left):
+                self.total_ticks_left = msg.data
+                self.initial_ticks_left = msg.data
+                self.initialised_ticks_left = True
 
-        #     self.dN_ticks_left = msg.data - self.total_ticks_left
-        #     self.wheel_distance_left += 2 * np.pi * self._radius \
-        #         * self.dN_ticks_left / self.N_total
+            dN_ticks_left = msg.data - self.total_ticks_left
+            self.wheel_distance_left += 2 * np.pi * self.radius * dN_ticks_left / self.encoder_resolution
 
-        #     self.total_ticks_left = msg.data
+            self.total_ticks_left = msg.data
 
-        # elif (wheel == "right"):
-        #     # use flag for if ticks have not been recorded yet
-        #     if (not self.initialised_ticks_right):
-        #         self.total_ticks_right = msg.data
-        #         self.initial_ticks_right = msg.data
-        #         self.initialised_ticks_right = True
+        elif (wheel == "right"):
 
-        #     self.dN_ticks_right = msg.data - self.total_ticks_right
-        #     self.wheel_distance_right += 2 * np.pi * self._radius \
-        #         * self.dN_ticks_right / self.N_total
+            if (not self.initialised_ticks_right): # use flag for if ticks have not been recorded yet
+                self.total_ticks_right = msg.data
+                self.initial_ticks_right = msg.data
+                self.initialised_ticks_right = True
 
-        #     self.total_ticks_right = msg.data
+            dN_ticks_right = msg.data - self.total_ticks_right
+            self.wheel_distance_right += 2 * np.pi * self.radius * dN_ticks_right / self.encoder_resolution
 
-        # else:
-        #     raise NameError("wheel name not found")
+            self.total_ticks_right = msg.data
+
+        else:
+            raise NameError("wheel name not found")
+
+
+        # Estimation
+
+        self.theta = np.mod( (self.wheel_distance_left - self.wheel_distance_right) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
+        rospy.loginfo(f"[Debug]: Theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
         # make transform message (published in self.run)
         self.transform_msg = TransformStamped()
@@ -138,6 +153,9 @@ class EncoderLocalization(DTROS):
         # self.transform_msg.transform.rotation.z = 
         # self.transform_msg.transform.rotation.w = 
 
+        self.encoder_received = True
+
+
 
     def run(self):
         """ Publish and broadcast the transform_msg calculated in the callback 
@@ -147,7 +165,6 @@ class EncoderLocalization(DTROS):
         while not rospy.is_shutdown():
             # don't publish until first encoder message received ?good idea?
             if self.encoder_received:
-                self.log(f'Publishing transform ...')
                 self.pub_transform.publish(self.transform_msg)
                 # also broadcast transform so it can be viewed in RViz
                 self.broadcaster.sendTransform(self.transform_msg)
