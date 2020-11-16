@@ -7,6 +7,8 @@ from std_msgs.msg import String, Float32
 from geometry_msgs.msg import TransformStamped
 from duckietown_msgs.msg import WheelEncoderStamped
 import yaml
+import tf2_ros
+import numpy as np
 
 
 class EncoderLocalisation(DTROS):
@@ -25,6 +27,17 @@ class EncoderLocalisation(DTROS):
 
         # set encoder received flag
         self.encoder_received = False
+
+        # set initial transformation from map frame to baselink frame
+        self.map_to_baselink = np.asarray(
+            [[-1, 0, 0, -1],
+            [0, -1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]]
+        )
+
+        # construct broadcaster
+        self.broadcaster = tf2_ros.TransformBroadcaster()
 
         # construct publisher 
         pub_topic = f'/{self.veh_name}/wheel_distance_left'
@@ -81,6 +94,7 @@ class EncoderLocalisation(DTROS):
         self.tick_received_time = rospy.Time.now() # record time for publishing
         rospy.loginfo(f"Recieved message from {wheel} wheel\n{msg}")
 
+        # # copied below is code for finding the wheel distance for the estimator
         # if (wheel == "left"):
         #     # use flag for if ticks have not been recorded yet
         #     if (not self.initialised_ticks_left):
@@ -110,19 +124,34 @@ class EncoderLocalisation(DTROS):
         # else:
         #     raise NameError("wheel name not found")
 
+        # make transform message (published in self.run)
+        self.transform_msg = TransformStamped()
+        # time needs to be from the last wheel encoder tick
+        self.transform_msg.header.stamp = self.tick_received_time
+        self.transform_msg.header.frame_id = "map" # name of parent frame
+        self.transform_msg.child_frame_id = "encoder_baselink"
+
+        # self.transform_msg.transform.translation.x = 
+        # self.transform_msg.transform.translation.y = 
+        # self.transform_msg.transform.translation.z = 
+        # self.transform_msg.transform.rotation.x = 
+        # self.transform_msg.transform.rotation.y = 
+        # self.transform_msg.transform.rotation.z = 
+        # self.transform_msg.transform.rotation.w = 
+
 
     def run(self):
-        #TODO publish transform
+        """ Publish and broadcast the transform_msg calculated in the callback 
+        """
         rate = rospy.Rate(30) # publish at 30Hz
 
         while not rospy.is_shutdown():
             # don't publish until first encoder message received ?good idea?
             if self.encoder_received:
                 rospy.loginfo(f'Publishing transform ...')
-                transform_msg = TransformStamped()
-                # time needs to be from the last wheel encoder tick
-                transform_msg.header.stamp = self.tick_received_time
-                self.pub_transform.publish(transform_msg)
+                self.pub_transform.publish(self.transform_msg)
+                # also broadcast transform so it can be viewed in RViz
+                self.broadcaster.sendTransform(self.transform_msg)
 
             rate.sleep() # main thread waits here between publishes
 
