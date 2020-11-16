@@ -19,11 +19,11 @@ class EncoderLocalisation(DTROS):
 
         # get vehicle name
         self.veh_name = rospy.get_namespace().strip("/")
-        rospy.loginfo(f"Using vehicle name {self.veh_name}")
+        self.log(f"Using vehicle name {self.veh_name}")
 
         # get baseline and radius
         self.baseline, self.radius = self.get_calib_params()
-        rospy.loginfo(f'baseline: {self.baseline}, radius: {self.radius}')
+        self.log(f'baseline: {self.baseline}, radius: {self.radius}')
 
         # set encoder received flag
         self.encoder_received = False
@@ -40,7 +40,7 @@ class EncoderLocalisation(DTROS):
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
         # construct publisher 
-        pub_topic = f'/{self.veh_name}/wheel_distance_left'
+        pub_topic = f'/{self.veh_name}/encoder_localisation/transform'
         self.pub_transform = rospy.Publisher(
             pub_topic, TransformStamped, queue_size=10)
         
@@ -65,7 +65,7 @@ class EncoderLocalisation(DTROS):
         cali_file = f'{cali_folder}/{self.veh_name}.yaml'
 
         # Locate calibration yaml file or use the default otherwise
-        rospy.loginfo(f'Looking for calibration {cali_file}')
+        self.log(f'Looking for calibration {cali_file}')
         if not os.path.isfile(cali_file):
             rospy.logwarn(f'Calibration not found: {cali_file}\n Using default instead.')
             cali_file = (f'{cali_folder}/default.yaml')
@@ -81,7 +81,7 @@ class EncoderLocalisation(DTROS):
         baseline = yaml_dict['baseline']
         radius = yaml_dict['radius']
 
-        rospy.loginfo(f'Using calibration file: {cali_file}')
+        self.log(f'Using calibration file: {cali_file}')
 
         return (baseline, radius)
 
@@ -91,8 +91,7 @@ class EncoderLocalisation(DTROS):
         """
 
         self.encoder_received = True
-        self.tick_received_time = rospy.Time.now() # record time for publishing
-        rospy.loginfo(f"Recieved message from {wheel} wheel\n{msg}")
+        self.log(f"Recieved message from {wheel} wheel\n{msg}")
 
         # # copied below is code for finding the wheel distance for the estimator
         # if (wheel == "left"):
@@ -127,7 +126,7 @@ class EncoderLocalisation(DTROS):
         # make transform message (published in self.run)
         self.transform_msg = TransformStamped()
         # time needs to be from the last wheel encoder tick
-        self.transform_msg.header.stamp = self.tick_received_time
+        self.transform_msg.header.stamp = msg.header.stamp
         self.transform_msg.header.frame_id = "map" # name of parent frame
         self.transform_msg.child_frame_id = "encoder_baselink"
 
@@ -148,7 +147,7 @@ class EncoderLocalisation(DTROS):
         while not rospy.is_shutdown():
             # don't publish until first encoder message received ?good idea?
             if self.encoder_received:
-                rospy.loginfo(f'Publishing transform ...')
+                self.log(f'Publishing transform ...')
                 self.pub_transform.publish(self.transform_msg)
                 # also broadcast transform so it can be viewed in RViz
                 self.broadcaster.sendTransform(self.transform_msg)
