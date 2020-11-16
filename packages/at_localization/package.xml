@@ -1,5 +1,5 @@
 <package>
-  <name>at_localisation</name>
+  <name>at_localization</name>
   <version>0.1.0</version>
   <description>
   Estimates the state using the camera via april tags
