@@ -6,6 +6,7 @@ from duckietown.dtros import DTROS, NodeType
 from std_msgs.msg import String, Float32
 from geometry_msgs.msg import TransformStamped
 from duckietown_msgs.msg import WheelEncoderStamped
+from std_srvs.srv import Trigger, TriggerResponse
 import yaml
 import tf2_ros
 import numpy as np
@@ -58,15 +59,15 @@ class EncoderLocalization(DTROS):
         self.transform_msg.header.frame_id = "map" #parent frame
         self.transform_msg.child_frame_id = "encoder_baselink"
 
-        # construct broadcaster
+        # initialize broadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
-        # construct publisher 
+        # initialize publishers
         pub_topic = f'/{self.veh_name}/encoder_localization/transform'
         self.pub_transform = rospy.Publisher(
             pub_topic, TransformStamped, queue_size=10)
         
-        # subscribe to wheel encoders
+        # initialize subscribers
         left_encoder_topic = f'/{self.veh_name}/left_wheel_encoder_node/tick'
         right_encoder_topic = f'/{self.veh_name}/right_wheel_encoder_node/tick'
 
@@ -78,6 +79,8 @@ class EncoderLocalization(DTROS):
             right_encoder_topic,
             WheelEncoderStamped, self.cb_encoder_to_transform, callback_args="right"
             )
+        # initialize services
+        self.serv_reset = rospy.Service(f'/{self.veh_name}/encoder_localization/reset', Trigger, self.reset)
 
 
     def get_calib_params(self):
@@ -141,7 +144,7 @@ class EncoderLocalization(DTROS):
 
         # Estimate theta
         self.theta = np.mod( (self.wheel_distance_left - self.wheel_distance_right) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
-        rospy.loginfo(f"[Debug]: Theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
+        rospy.loginfo_throttle(1.0, f"[Debug]: Theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
         # Estimate x,y
         # TODO
@@ -175,6 +178,26 @@ class EncoderLocalization(DTROS):
                 self.broadcaster.sendTransform(self.transform_msg) #for tf tree
 
             rate.sleep() # main thread waits here between publishes
+
+    def reset(self, request):
+
+        self.initialised_ticks_left = False
+        self.wheel_distance_left = 0.0
+
+        self.initialised_ticks_right = False
+        self.wheel_distance_right = 0.0
+
+        #TODO maybe needs change? (compare to self.map_to_baselink)
+        self.theta = 0.0
+        self.x = 0.0 
+        self.y = 0.0
+
+        return TriggerResponse(
+        success=True,
+        message="Reset! (initialized_ticks_left/right = False, wheel_distance_left/right = 0.0, theta,x,y = 0.0)"
+        )
+
+        self.log("Reset!")
 
 if __name__ == '__main__':
     # create the node
