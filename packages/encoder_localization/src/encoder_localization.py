@@ -48,7 +48,15 @@ class EncoderLocalization(DTROS):
             [0, 0, 0, 1]]
         )
 
+        # initialize estimation variables
         self.theta = 0.0
+        self.x = 0.0
+        self.y = 0.0
+
+        # initialize transform msg
+        self.transform_msg = TransformStamped() #published in self.run()
+        self.transform_msg.header.frame_id = "map" #parent frame
+        self.transform_msg.child_frame_id = "encoder_baselink"
 
         # construct broadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
@@ -104,9 +112,7 @@ class EncoderLocalization(DTROS):
         """ TODO process the wheel encoder data into a transform
         """
 
-        # # copied below is code for finding the wheel distance for the estimator
         if (wheel == "left"):
-        #     # use flag for if ticks have not been recorded yet
             if (not self.initialised_ticks_left):
                 self.total_ticks_left = msg.data
                 self.initial_ticks_left = msg.data
@@ -119,7 +125,7 @@ class EncoderLocalization(DTROS):
 
         elif (wheel == "right"):
 
-            if (not self.initialised_ticks_right): # use flag for if ticks have not been recorded yet
+            if (not self.initialised_ticks_right):
                 self.total_ticks_right = msg.data
                 self.initial_ticks_right = msg.data
                 self.initialised_ticks_right = True
@@ -133,17 +139,16 @@ class EncoderLocalization(DTROS):
             raise NameError("wheel name not found")
 
 
-        # Estimation
-
+        # Estimate theta
         self.theta = np.mod( (self.wheel_distance_left - self.wheel_distance_right) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
         rospy.loginfo(f"[Debug]: Theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
-        # make transform message (published in self.run)
-        self.transform_msg = TransformStamped()
-        # time needs to be from the last wheel encoder tick
+        # Estimate x,y
+        # TODO
+
+
+        # Generate Message
         self.transform_msg.header.stamp = msg.header.stamp
-        self.transform_msg.header.frame_id = "map" # name of parent frame
-        self.transform_msg.child_frame_id = "encoder_baselink"
 
         # self.transform_msg.transform.translation.x = 
         # self.transform_msg.transform.translation.y = 
@@ -163,11 +168,11 @@ class EncoderLocalization(DTROS):
         rate = rospy.Rate(30) # publish at 30Hz
 
         while not rospy.is_shutdown():
-            # don't publish until first encoder message received ?good idea?
-            if self.encoder_received:
-                self.pub_transform.publish(self.transform_msg)
-                # also broadcast transform so it can be viewed in RViz
-                self.broadcaster.sendTransform(self.transform_msg)
+            
+            if self.encoder_received: #don't publish until first encoder message received
+                
+                self.pub_transform.publish(self.transform_msg) #for debug
+                self.broadcaster.sendTransform(self.transform_msg) #for tf tree
 
             rate.sleep() # main thread waits here between publishes
 
@@ -176,3 +181,4 @@ if __name__ == '__main__':
     node = EncoderLocalization(node_name='encoder_localization')
     # run node
     node.run()
+
