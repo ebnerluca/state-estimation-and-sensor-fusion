@@ -7,6 +7,9 @@ from image_geometry import PinholeCameraModel
 
 
 class AtLocalization:
+    """
+    Handles image rectification and april tag detection.
+    """
     def __init__(self, camera_info, tag_size):
 
         # init image rectification
