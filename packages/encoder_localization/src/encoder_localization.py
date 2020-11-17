@@ -9,6 +9,7 @@ from duckietown_msgs.msg import WheelEncoderStamped
 from std_srvs.srv import Trigger, TriggerResponse
 import yaml
 import tf2_ros
+from squaternion import Quaternion
 import numpy as np
 
 
@@ -18,7 +19,6 @@ class EncoderLocalization(DTROS):
         # initialize the DTROS parent class
         super(EncoderLocalization, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
 
-        # get vehicle name
         self.veh_name = rospy.get_namespace().strip("/")
         self.log(f"Using vehicle name {self.veh_name}")
 
@@ -49,9 +49,9 @@ class EncoderLocalization(DTROS):
             [0, 0, 0, 1]]
         )
 
-        # initialize estimation variables
-        self.theta = 0.0
-        self.x = 0.0
+        # initialize estimation variables in map frame
+        self.theta = np.pi
+        self.x = 1.0
         self.y = 0.0
 
         # initialize transform msg
@@ -115,14 +115,21 @@ class EncoderLocalization(DTROS):
         """ TODO process the wheel encoder data into a transform
         """
 
+        # distance increments
+        d_left = 0.0
+        d_right = 0.0
+
         if (wheel == "left"):
+
             if (not self.initialised_ticks_left):
                 self.total_ticks_left = msg.data
                 self.initial_ticks_left = msg.data
                 self.initialised_ticks_left = True
 
             dN_ticks_left = msg.data - self.total_ticks_left
-            self.wheel_distance_left += 2 * np.pi * self.radius * dN_ticks_left / self.encoder_resolution
+            #self.wheel_distance_left += 2 * np.pi * self.radius * dN_ticks_left / self.encoder_resolution
+            d_left = 2.0 * np.pi * self.radius * dN_ticks_left / self.encoder_resolution
+            self.wheel_distance_left += d_left
 
             self.total_ticks_left = msg.data
 
@@ -134,7 +141,9 @@ class EncoderLocalization(DTROS):
                 self.initialised_ticks_right = True
 
             dN_ticks_right = msg.data - self.total_ticks_right
-            self.wheel_distance_right += 2 * np.pi * self.radius * dN_ticks_right / self.encoder_resolution
+            #self.wheel_distance_right += 2 * np.pi * self.radius * dN_ticks_right / self.encoder_resolution
+            d_right = 2.0 * np.pi * self.radius * dN_ticks_right / self.encoder_resolution
+            self.wheel_distance_right += d_right
 
             self.total_ticks_right = msg.data
 
@@ -142,24 +151,29 @@ class EncoderLocalization(DTROS):
             raise NameError("wheel name not found")
 
 
-        # Estimate theta
-        self.theta = np.mod( (self.wheel_distance_left - self.wheel_distance_right) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
-        rospy.loginfo_throttle(1.0, f"[Debug]: Theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
-
         # Estimate x,y
-        # TODO
+        d = (d_left + d_right) / 2.0
+        direction = [np.cos(self.theta), np.sin(self.theta)] # assuming x(t + dt) = x(t) + d*cos(theta(t))
+        self.x += d * direction[0]
+        self.y += d * direction[1]
+        rospy.loginfo_throttle(1.0, f"[Debug]: x,y = {self.x}, {self.y}")
 
+        # Estimate theta
+        self.theta = np.mod( np.pi + (self.wheel_distance_right - self.wheel_distance_left) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
+        rospy.loginfo_throttle(1.0, f"[Debug]: theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
         # Generate Message
-        self.transform_msg.header.stamp = msg.header.stamp
+        #self.transform_msg.header.stamp = msg.header.stamp # TODO: tick message stamps apparently are zero
+        self.transform_msg.header.stamp = rospy.Time.now()
+        self.transform_msg.transform.translation.x = self.x
+        self.transform_msg.transform.translation.y = self.y
+        self.transform_msg.transform.translation.z = 0.0
 
-        # self.transform_msg.transform.translation.x = 
-        # self.transform_msg.transform.translation.y = 
-        # self.transform_msg.transform.translation.z = 
-        # self.transform_msg.transform.rotation.x = 
-        # self.transform_msg.transform.rotation.y = 
-        # self.transform_msg.transform.rotation.z = 
-        # self.transform_msg.transform.rotation.w = 
+        q = Quaternion.from_euler(0.0, 0.0, self.theta)
+        self.transform_msg.transform.rotation.x = q[1]
+        self.transform_msg.transform.rotation.y = q[2]
+        self.transform_msg.transform.rotation.z = q[3]
+        self.transform_msg.transform.rotation.w = q[0]
 
         self.encoder_received = True
 
@@ -172,10 +186,11 @@ class EncoderLocalization(DTROS):
 
         while not rospy.is_shutdown():
             
-            if self.encoder_received: #don't publish until first encoder message received
+            if self.encoder_received: #don't publish if no new encoder message was received
                 
                 self.pub_transform.publish(self.transform_msg) #for debug
                 self.broadcaster.sendTransform(self.transform_msg) #for tf tree
+                self.encoder_received = False
 
             rate.sleep() # main thread waits here between publishes
 
@@ -188,8 +203,8 @@ class EncoderLocalization(DTROS):
         self.wheel_distance_right = 0.0
 
         #TODO maybe needs change? (compare to self.map_to_baselink)
-        self.theta = 0.0
-        self.x = 0.0 
+        self.theta = np.pi
+        self.x = 1.0
         self.y = 0.0
 
         return TriggerResponse(
