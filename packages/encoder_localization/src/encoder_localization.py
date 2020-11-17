@@ -152,13 +152,8 @@ class EncoderLocalization(DTROS):
         rospy.loginfo_throttle(1.0, f"[Debug]: theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
 
-        # Update Transform
-        self.update_transform()
-
-
-        # Set Flag
+        # Set Flag for new Message
         self.encoder_received = True
-
 
 
     def update_transform(self):
@@ -186,8 +181,14 @@ class EncoderLocalization(DTROS):
             
             if self.encoder_received: #don't publish if no new encoder message was received
                 
+                # Update Transform Message
+                self.update_transform()
+
+                # Publish / Broadcast Message
                 self.pub_transform.publish(self.transform_msg) #for debug
                 self.broadcaster.sendTransform(self.transform_msg) #for tf tree
+
+                # Reset Flag
                 self.encoder_received = False #prevent publishing old messages
 
             rate.sleep() # main thread waits here between publishes
