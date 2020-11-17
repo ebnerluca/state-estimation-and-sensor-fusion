@@ -14,6 +14,7 @@ dt-launchfile-init
 
 # launching app
 dt-exec roslaunch at_localization at_localization.launch veh:="$VEHICLE_NAME"
+#dt-exec roslaunch encoder_localization encoder_localization.launch veh:="$VEHICLE_NAME"
 
 
 # ----------------------------------------------------------------------------
