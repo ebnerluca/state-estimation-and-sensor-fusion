@@ -42,7 +42,7 @@ class AtLocalizationNode(DTROS):
 
 
         # initialize tf broadcasters
-        self.timestamp = None
+        self.timestamp = rospy.Time.now()
 
         self.bc_map_apriltag = tf2_ros.StaticTransformBroadcaster()  # static transform (rigid connection)
         self.ts_map_apriltag = TransformStamped()
@@ -76,21 +76,20 @@ class AtLocalizationNode(DTROS):
         """
         r = rospy.Rate(30)  # 30Hz
         while not rospy.is_shutdown():
+                # broadcast map-apriltag
+                self.ts_map_apriltag.header.stamp = self.timestamp
+                self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
+                r.sleep()
 
-            # broadcast map-apriltag
-            self.ts_map_apriltag.header.stamp = self.timestamp
-            self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
-            r.sleep()
+                # broadcast apriltag-camera
+                if self.tf_apriltag_camera is not None:
+                    self.ts_apriltag_camera.header.stamp = self.timestamp
+                    self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
+                    self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)
 
-            # broadcast apriltag-camera
-            if self.tf_apriltag_camera is not None:
-                self.ts_apriltag_camera.header.stamp = self.timestamp
-                self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
-                self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)
-
-            # broadcast camera-baselink
-            self.ts_camera_baselink.header.stamp = self.timestamp
-            self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
+                # broadcast camera-baselink
+                self.ts_camera_baselink.header.stamp = self.timestamp
+                self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
 
     def cb_camera(self, msg):
 
@@ -99,15 +98,6 @@ class AtLocalizationNode(DTROS):
         # detect april tag and extract its reference frame
         img_rect = self.at_loc.rectify(img)
         tags = self.at_loc.detect(img_rect)
-        if len(tags) > 1:
-            self.log("More than one april tag detected in the image. Please make sure only one is visible.", type="warn")
-            return
-        if tags is None:
-            self.log("No apriltag detected")
-
-        # update tf and timestamp
-        self.set_tf_apriltag_camera(tags[0].pose_R, tags[0].pose_t)
-        self.timestamp = msg.header.stamp
 
         if self.debug:
             self.visualize_at_detection(img_rect, tags)
@@ -115,6 +105,17 @@ class AtLocalizationNode(DTROS):
             img_out.header = msg.header
             img_out.format = msg.format
             self.pub_at_detection.publish(img_out)
+            
+        if len(tags) > 1:
+            self.log("More than one april tag detected in the image. Please make sure only one is visible.", type="warn")
+            return
+        if len(tags) == 0:
+            self.log("No apriltag detected")
+            return
+
+        # update tf and timestamp
+        self.set_tf_apriltag_camera(tags[0].pose_R, tags[0].pose_t)
+        self.timestamp = msg.header.stamp
 
     @staticmethod
     def tf_to_msg(transform):
