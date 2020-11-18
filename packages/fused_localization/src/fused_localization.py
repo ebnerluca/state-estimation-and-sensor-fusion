@@ -25,15 +25,14 @@ class FusedLocalization(DTROS):
 
         # Initialize Transform Message
         self.transform_msg = TransformStamped() #published in self.run()
-        self.transform_msg.header.frame_id = "map" #parent frame
-        self.transform_msg.child_frame_id = "fused_baselink"
-        self.transform_msg.transform.translation.z = 0.0
 
         # Initialize TF Broadcaster
-        # TODO
+        self.broadcaster = tf2_ros.TransformBroadcaster()
 
         # Initialize TF Listener
-        # TODO
+        self.tfBuffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tfBuffer)
+        self.previous_apriltag_stamp = rospy.Time()
 
         # Initialize Publishers
         # TODO
@@ -54,7 +53,35 @@ class FusedLocalization(DTROS):
 
         while not rospy.is_shutdown():
 
-            rate.sleep() # main thread waits here between publishes
+            # Look up Transforms
+            try:
+                tf_map_to_encoder_baselink = self.tfBuffer.lookup_transform('map', 'encoder_baselink', rospy.Time())
+                tf_map_to_apriltag_baselink = self.tfBuffer.lookup_transform('map', 'at_baselink', rospy.Time())
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                rate.sleep()
+                continue #jumps back to beginning of while loop
+
+            
+            # Select relevant Transform
+            if((tf_map_to_apriltag_baselink.header.stamp - self.previous_apriltag_stamp).to_sec() > 0.0): # Check if apriltag transforms is newer than last one
+
+                self.transform_msg = tf_map_to_apriltag_baselink
+                # TODO: update map frame in encoder_localization
+
+            else:
+                
+                rospy.logwarn_throttle(1.0, "[Debug] map_to_apriltag_baselink transform is old. Apriltag may be out of sight? Using encoder encoder_localization.")
+                self.transform_msg = tf_map_to_encoder_baselink
+
+            # Edit Message
+            self.transform_msg.header.frame_id = "map"
+            self.transform_msg.child_frame_id = "fused_baselink"
+            self.transform_msg.transform.translation.z = 0.0 # project to ground plane
+
+            # Broadcast Transform Message
+            self.broadcaster.sendTransform(self.transform_msg)
+
+            rate.sleep()
 
 
 if __name__ == '__main__':

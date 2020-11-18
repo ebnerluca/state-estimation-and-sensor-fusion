@@ -10,7 +10,7 @@
     <node pkg="at_localization" type="at_localization_node.py" name="apriltag_localization" output="screen">
     </node>
 
-    <node pkg="fused_localization" type="fused_localization_node.py" name="fused_localization" output="screen">
+    <node pkg="fused_localization" type="fused_localization.py" name="fused_localization" output="screen">
     </node>
 
   </group>

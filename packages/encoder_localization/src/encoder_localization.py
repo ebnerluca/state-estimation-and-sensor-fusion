@@ -189,7 +189,7 @@ class EncoderLocalization(DTROS):
                 self.broadcaster.sendTransform(self.transform_msg) #for tf tree
 
                 # Reset Flag
-                self.encoder_received = False #prevent publishing old messages
+                # self.encoder_received = False #prevent publishing old messages
 
             rate.sleep() # main thread waits here between publishes
 
