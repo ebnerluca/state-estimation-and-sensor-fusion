@@ -1,5 +1,5 @@
 <package>
-  <name>fused_localisation</name>
+  <name>fused_localization</name>
   <version>0.1.0</version>
   <description>
   Estimates the state using both the encoders and the camera via april tags
