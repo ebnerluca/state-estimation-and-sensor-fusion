@@ -80,7 +80,6 @@ class AtLocalizationNode(DTROS):
             # broadcast map-apriltag
             self.ts_map_apriltag.header.stamp = self.timestamp
             self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
-            r.sleep()
 
             # broadcast apriltag-camera
             if self.tf_apriltag_camera is not None:
@@ -91,6 +90,8 @@ class AtLocalizationNode(DTROS):
             # broadcast camera-baselink
             self.ts_camera_baselink.header.stamp = self.timestamp
             self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
+
+            r.sleep()
 
     def cb_camera(self, msg):
 
@@ -104,6 +105,7 @@ class AtLocalizationNode(DTROS):
             return
         if tags is None:
             self.log("No apriltag detected")
+            return
 
         # update tf and timestamp
         self.set_tf_apriltag_camera(tags[0].pose_R, tags[0].pose_t)
@@ -152,9 +154,9 @@ class AtLocalizationNode(DTROS):
         # correct camera frame and apriltag orientation to conform with specifications
         camera_rot = transformations.euler_matrix(np.pi/2, -np.pi/2, 0, axes="ryzx")  # rotate C to C'
         apriltag_rot = transformations.euler_matrix(np.pi/2, -np.pi/2, 0, axes="rxzy")  # rotate A' to A
-        tf_camera_apriltag = camera_rot @ tf_detected @ apriltag_rot
+        tf_camera_apriltag = camera_rot @ tf_detected @ apriltag_rot  # Tcc' * Tc'a' * Ta'a = Tca
 
-        self.tf_apriltag_camera = np.linalg.inv(tf_camera_apriltag)
+        self.tf_apriltag_camera = np.linalg.inv(tf_camera_apriltag)  # Tac
 
     def read_image(self, msg_image):
         """
