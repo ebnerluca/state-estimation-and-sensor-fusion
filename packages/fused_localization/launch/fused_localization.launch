@@ -1,0 +1,18 @@
+<launch>
+
+  <arg name="veh"/>
+
+  <group ns="$(arg veh)">
+
+    <node pkg="encoder_localization" type="encoder_localization.py" name="encoder_localization" output="screen">
+    </node>
+
+    <node pkg="at_localization" type="at_localization_node.py" name="apriltag_localization" output="screen">
+    </node>
+
+    <node pkg="fused_localization" type="fused_localization_node.py" name="fused_localization" output="screen">
+    </node>
+
+  </group>
+
+</launch>
