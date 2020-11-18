@@ -31,17 +31,13 @@ class AtLocalizationNode(DTROS):
         at_size = 0.065  # apriltag size (side length)
         at_height = 0.089  # height of apriltag center point above ground
 
-        # initialize camera subscriber and load calibration data
-        self.sub_camera_img = rospy.Subscriber("camera_node/image/compressed", CompressedImage, self.cb_camera,
-                                               queue_size=1)
         calibration_data = self.read_yaml_file(f"/data/config/calibrations/camera_intrinsic/{self.veh}.yaml")
         camera_info = self.camera_info_from_yaml(calibration_data)
 
         # initialize image rectification and apriltag detection
         self.at_loc = AtLocalization(camera_info, tag_size=at_size)
 
-
-        # initialize tf broadcasters
+        # initialize tf broadcasters, broadcast the static ones
         self.timestamp = rospy.Time.now()
 
         self.bc_map_apriltag = tf2_ros.StaticTransformBroadcaster()  # static transform (rigid connection)
@@ -50,6 +46,8 @@ class AtLocalizationNode(DTROS):
         self.ts_map_apriltag.child_frame_id = "apriltag"
         tf_map_apriltag = transformations.translation_matrix([0, 0, at_height])  # 4x4 numpy array
         self.ts_map_apriltag.transform = self.tf_to_msg(tf_map_apriltag)
+        self.ts_map_apriltag.header.stamp = self.timestamp
+        self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)  # broadcast map-apriltag
 
         self.bc_apriltag_camera = tf2_ros.TransformBroadcaster()
         self.ts_apriltag_camera = TransformStamped()
@@ -62,7 +60,12 @@ class AtLocalizationNode(DTROS):
         self.ts_camera_baselink.header.frame_id = "camera"
         self.ts_camera_baselink.child_frame_id = "at_baselink"
         self.ts_camera_baselink.transform = self.get_tf_msg_camera_baselink()
+        self.ts_camera_baselink.header.stamp = self.timestamp
+        self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)  # broadcast camera-baselink
 
+        # initialize camera subscriber and load calibration data
+        self.sub_camera_img = rospy.Subscriber("camera_node/image/compressed", CompressedImage, self.cb_camera,
+                                               queue_size=1)
 
         # debugging
         self.debug = True
@@ -76,20 +79,10 @@ class AtLocalizationNode(DTROS):
         """
         r = rospy.Rate(30)  # 30Hz
         while not rospy.is_shutdown():
-            # broadcast map-apriltag
-            self.ts_map_apriltag.header.stamp = self.timestamp
-            self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
-
-            # broadcast apriltag-camera
             if self.tf_apriltag_camera is not None:
                 self.ts_apriltag_camera.header.stamp = self.timestamp
                 self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
-                self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)
-
-            # broadcast camera-baselink
-            self.ts_camera_baselink.header.stamp = self.timestamp
-            self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
-
+                self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)  # broadcast apriltag-camera
             r.sleep()
 
     def cb_camera(self, msg):
