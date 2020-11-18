@@ -76,20 +76,21 @@ class AtLocalizationNode(DTROS):
         """
         r = rospy.Rate(30)  # 30Hz
         while not rospy.is_shutdown():
-                # broadcast map-apriltag
-                self.ts_map_apriltag.header.stamp = self.timestamp
-                self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
-                r.sleep()
+            # broadcast map-apriltag
+            self.ts_map_apriltag.header.stamp = self.timestamp
+            self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)
 
-                # broadcast apriltag-camera
-                if self.tf_apriltag_camera is not None:
-                    self.ts_apriltag_camera.header.stamp = self.timestamp
-                    self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
-                    self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)
+            # broadcast apriltag-camera
+            if self.tf_apriltag_camera is not None:
+                self.ts_apriltag_camera.header.stamp = self.timestamp
+                self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
+                self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)
 
-                # broadcast camera-baselink
-                self.ts_camera_baselink.header.stamp = self.timestamp
-                self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
+            # broadcast camera-baselink
+            self.ts_camera_baselink.header.stamp = self.timestamp
+            self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)
+
+            r.sleep()
 
     def cb_camera(self, msg):
 
@@ -153,9 +154,9 @@ class AtLocalizationNode(DTROS):
         # correct camera frame and apriltag orientation to conform with specifications
         camera_rot = transformations.euler_matrix(np.pi/2, -np.pi/2, 0, axes="ryzx")  # rotate C to C'
         apriltag_rot = transformations.euler_matrix(np.pi/2, -np.pi/2, 0, axes="rxzy")  # rotate A' to A
-        tf_camera_apriltag = camera_rot @ tf_detected @ apriltag_rot
+        tf_camera_apriltag = camera_rot @ tf_detected @ apriltag_rot  # Tcc' * Tc'a' * Ta'a = Tca
 
-        self.tf_apriltag_camera = np.linalg.inv(tf_camera_apriltag)
+        self.tf_apriltag_camera = np.linalg.inv(tf_camera_apriltag)  # Tac
 
     def read_image(self, msg_image):
         """
