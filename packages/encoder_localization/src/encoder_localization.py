@@ -103,6 +103,7 @@ class EncoderLocalization(DTROS):
         """ Processes the wheel encoder data and estimates the robot 2D pose.
         """
 
+        self.latest_timestamp = msg.header.stamp
         # Initialize Distance Increments
         d_left = 0.0
         d_right = 0.0
@@ -151,7 +152,6 @@ class EncoderLocalization(DTROS):
         self.theta = np.mod( np.pi + (self.wheel_distance_right - self.wheel_distance_left) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
         rospy.loginfo_throttle(1.0, f"[Debug]: theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
-
         # Set Flag for new Message
         self.encoder_received = True
 
@@ -161,7 +161,7 @@ class EncoderLocalization(DTROS):
         """
 
         #self.transform_msg.header.stamp = msg.header.stamp # TODO: tick message stamps apparently are zero
-        self.transform_msg.header.stamp = rospy.Time.now()
+        self.transform_msg.header.stamp = self.latest_timestamp
         self.transform_msg.transform.translation.x = self.x
         self.transform_msg.transform.translation.y = self.y
 
@@ -189,7 +189,7 @@ class EncoderLocalization(DTROS):
                 self.broadcaster.sendTransform(self.transform_msg) #for tf tree
 
                 # Reset Flag
-                # self.encoder_received = False #prevent publishing old messages
+                self.encoder_received = False #prevent publishing duplicate transforms
 
             rate.sleep() # main thread waits here between publishes
 
