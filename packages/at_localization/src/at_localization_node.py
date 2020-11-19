@@ -107,10 +107,10 @@ class AtLocalizationNode(DTROS):
             self.pub_at_detection.publish(img_out)
             
         if len(tags) > 1:
-            self.log("More than one april tag detected in the image. Please make sure only one is visible.", type="warn")
+            rospy.logwarn_throttle(2.0, "[ATLocalizationNode]: More than one april tag detected in the image. Please make sure only one is visible.")
             return
         if len(tags) == 0:
-            self.log("No apriltag detected")
+            rospy.loginfo_throttle(2.0, "[ATLocalizationNode]: No apriltag detected.")
             return
 
         # update tf and timestamp
