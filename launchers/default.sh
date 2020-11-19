@@ -14,11 +14,27 @@ dt-launchfile-init
 
 # launching app
 
-#dt-exec roslaunch at_localization at_localization.launch veh:="$VEHICLE_NAME"
-#dt-exec roslaunch encoder_localization encoder_localization.launch veh:="$VEHICLE_NAME"
+# decide which package to launch using environment variables input at runtime
 
-dt-exec roslaunch fused_localization fused_localization.launch veh:="$VEHICLE_NAME"
-#dt-exec roslaunch fused_localization fused_localization_standalone.launch veh:="$VEHICLE_NAME" #debug
+if [ "$LAUNCH_PACKAGE" = "encoder_localization" ]
+then
+    echo "default.sh: Launching encoder_localization package!"
+    dt-exec roslaunch encoder_localization encoder_localization.launch veh:="$VEHICLE_NAME"
+elif [ "$LAUNCH_PACKAGE" = "at_localization" ]
+then
+    echo "default.sh: Launching at_localization package!"
+    dt-exec roslaunch at_localization at_localization.launch veh:="$VEHICLE_NAME"
+elif [ "$LAUNCH_PACKAGE" = "fused_localization" ]
+then
+    echo "default.sh: Launching fused_localization package!"
+    dt-exec roslaunch fused_localization fused_localization.launch veh:="$VEHICLE_NAME"
+else
+    echo "default.sh: Error: Please input a valid package to launch as the value of LAUNCH_PACKAGE in the form 
+    'dts devel run -- --env LAUNCH_PACKAGE=<package>'
+where <package> is encoder_localization, at_localization or fused_localization.
+You entered: $LAUNCH_PACKAGE"
+    exit 0
+fi
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE
