@@ -55,6 +55,7 @@ class AtLocalizationNode(DTROS):
         self.ts_apriltag_camera.header.frame_id = "apriltag"
         self.ts_apriltag_camera.child_frame_id = "camera"
         self.tf_apriltag_camera = None
+        self.has_new_transform = False
 
         #self.bc_camera_baselink = tf2_ros.StaticTransformBroadcaster()
         self.ts_camera_baselink = TransformStamped()
@@ -82,10 +83,12 @@ class AtLocalizationNode(DTROS):
         """
         r = rospy.Rate(30)  # 30Hz
         while not rospy.is_shutdown():
-            if self.tf_apriltag_camera is not None:
+            #if( (self.tf_apriltag_camera is not None) && (self.has_new_transform) ): #only publish when there is a new transform
+            if(self.has_new_transform): #only publish when there is a new transform
                 self.ts_apriltag_camera.header.stamp = self.timestamp
                 self.ts_apriltag_camera.transform = self.tf_to_msg(self.tf_apriltag_camera)
                 self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)  # broadcast apriltag-camera
+                self.has_new_transform = False # reset flag
             r.sleep()
 
     def cb_camera(self, msg):
@@ -113,6 +116,7 @@ class AtLocalizationNode(DTROS):
         # update tf and timestamp
         self.set_tf_apriltag_camera(tags[0].pose_R, tags[0].pose_t)
         self.timestamp = msg.header.stamp
+        self.has_new_transform = True # set flag if new transform was computed
 
     @staticmethod
     def tf_to_msg(transform):
