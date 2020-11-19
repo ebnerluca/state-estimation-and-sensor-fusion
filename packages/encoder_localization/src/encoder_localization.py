@@ -17,6 +17,8 @@ class EncoderLocalization(DTROS):
 
     def __init__(self, node_name):
 
+        self.debug = False
+
         # Initialize DTROS Parent Class
         super(EncoderLocalization, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
 
@@ -55,6 +57,10 @@ class EncoderLocalization(DTROS):
         # Initialize TF Broadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
 
+        # Initialize TF Listener
+        self.tfBuffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tfBuffer)
+
         # Initialize Publishers
         pub_topic = f'/{self.veh_name}/encoder_localization/transform'
         self.pub_transform = rospy.Publisher(
@@ -68,6 +74,7 @@ class EncoderLocalization(DTROS):
 
         # Initialize Services
         self.serv_reset = rospy.Service(f'/{self.veh_name}/encoder_localization/reset', Trigger, self.reset)
+        self.serv_update_map_frame = rospy.Service(f'/{self.veh_name}/encoder_localization/update_map_frame', Trigger, self.update_map_frame)
 
         self.log("Initialized.")
 
@@ -103,7 +110,6 @@ class EncoderLocalization(DTROS):
         """ Processes the wheel encoder data and estimates the robot 2D pose.
         """
 
-        self.latest_timestamp = msg.header.stamp
         # Initialize Distance Increments
         d_left = 0.0
         d_right = 0.0
@@ -145,13 +151,20 @@ class EncoderLocalization(DTROS):
         direction = [np.cos(self.theta), np.sin(self.theta)] # assuming x(t + dt) = x(t) + d*cos(theta(t))
         self.x += d * direction[0]
         self.y += d * direction[1]
-        rospy.loginfo_throttle(1.0, f"[Debug]: x,y = {self.x}, {self.y} meters")
-
 
         # Estimate theta
         self.theta = np.mod( np.pi + (self.wheel_distance_right - self.wheel_distance_left) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
-        rospy.loginfo_throttle(1.0, f"[Debug]: theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
 
+
+        # Debug 
+        if(self.debug):
+            rospy.loginfo_throttle(1.0, f"[Debug]: x,y = {self.x}, {self.y} meters")
+            rospy.loginfo_throttle(1.0, f"[Debug]: theta = {self.theta * 360.0 / (2.0*np.pi)} degrees")
+        
+        # Setting Timestamp
+        self.latest_timestamp = rospy.Time.now()
+        #self.latest_timestamp = msg.header.stamp # TODO: encoder tick messages apparently are unstamped
+        
         # Set Flag for new Message
         self.encoder_received = True
 
@@ -160,7 +173,6 @@ class EncoderLocalization(DTROS):
         """ updates the transform from map frame to encoder_baselink frame according to the current estimation
         """
 
-        #self.transform_msg.header.stamp = msg.header.stamp # TODO: tick message stamps apparently are zero
         self.transform_msg.header.stamp = self.latest_timestamp
         self.transform_msg.transform.translation.x = self.x
         self.transform_msg.transform.translation.y = self.y
@@ -176,6 +188,10 @@ class EncoderLocalization(DTROS):
         """ Publish and broadcast the transform_msg calculated in the callback 
         """
         rate = rospy.Rate(30) # publish at 30Hz
+
+        while not self.encoder_received:
+            rospy.loginfo_throttle(2.0, "[EncoderLocalization]: Waiting for first encoder message ...")
+
 
         while not rospy.is_shutdown():
             
@@ -193,6 +209,44 @@ class EncoderLocalization(DTROS):
 
             rate.sleep() # main thread waits here between publishes
 
+    def update_map_frame(self, request):
+        try:
+            tf_map_to_encoder_baselink = self.tfBuffer.lookup_transform('map', 'at_baselink', rospy.Time(0))
+            
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                
+            rospy.logwarn_throttle(1.0, "[EncoderLocalization]: Exception caught while looking up transform map -> apriltag_baselink. Retrying ...")
+            return TriggerResponse(
+            success=False,
+            message="Exception caught while looking up transform map -> apriltag_baselink."
+            )
+
+        self.initialised_ticks_left = False
+        self.wheel_distance_left = 0.0
+
+        self.initialised_ticks_right = False
+        self.wheel_distance_right = 0.0
+
+        # self.latest_timestamp = tf_map_to_encoder_baselink.header.stamp # that stamp originally stems from the camera image and has huge delay
+        self.latest_timestamp = rospy.Time.now() # rather use Time.now() to avoid tf buffer warnings
+
+        # Assumption: z = 0
+        self.x = tf_map_to_encoder_baselink.transform.translation.x
+        self.y = tf_map_to_encoder_baselink.transform.translation.y
+
+        # Assumption: axis of rotation is the z axis (planar robot)
+        q = Quaternion(tf_map_to_encoder_baselink.transform.rotation.w, tf_map_to_encoder_baselink.transform.rotation.x, tf_map_to_encoder_baselink.transform.rotation.y, tf_map_to_encoder_baselink.transform.rotation.z)
+        self.theta = q.angle
+
+        self.update_transform()
+        self.encoder_received = True
+
+        return TriggerResponse(
+        success=True,
+        message="Map frame updated."
+        )
+
+
     def reset(self, request):
 
         self.initialised_ticks_left = False
@@ -206,14 +260,15 @@ class EncoderLocalization(DTROS):
         self.y = 0.0
 
         self.update_transform()
-        self.encoder_received = True 
+        self.encoder_received = True
+
+        self.log("Reset! (initialized_ticks_left/right = False, wheel_distance_left/right = 0.0, theta = pi, x,y = 0.0)")
 
         return TriggerResponse(
         success=True,
-        message="Reset! (initialized_ticks_left/right = False, wheel_distance_left/right = 0.0, theta,x,y = 0.0)"
+        message="Reset! (initialized_ticks_left/right = False, wheel_distance_left/right = 0.0, theta = pi, x,y = 0.0)"
         )
 
-        self.log("Reset!")
 
 if __name__ == '__main__':
     # create the node
