@@ -39,15 +39,16 @@ class AtLocalizationNode(DTROS):
 
         # initialize tf broadcasters, broadcast the static ones
         self.timestamp = rospy.Time.now()
+        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
-        self.bc_map_apriltag = tf2_ros.StaticTransformBroadcaster()  # static transform (rigid connection)
+        #self.bc_map_apriltag = tf2_ros.StaticTransformBroadcaster()  # static transform (rigid connection)
         self.ts_map_apriltag = TransformStamped()
         self.ts_map_apriltag.header.frame_id = "map"
         self.ts_map_apriltag.child_frame_id = "apriltag"
         tf_map_apriltag = transformations.translation_matrix([0, 0, at_height])  # 4x4 numpy array
         self.ts_map_apriltag.transform = self.tf_to_msg(tf_map_apriltag)
         self.ts_map_apriltag.header.stamp = self.timestamp
-        self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)  # broadcast map-apriltag
+        #self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)  # broadcast map-apriltag
 
         self.bc_apriltag_camera = tf2_ros.TransformBroadcaster()
         self.ts_apriltag_camera = TransformStamped()
@@ -55,13 +56,15 @@ class AtLocalizationNode(DTROS):
         self.ts_apriltag_camera.child_frame_id = "camera"
         self.tf_apriltag_camera = None
 
-        self.bc_camera_baselink = tf2_ros.StaticTransformBroadcaster()
+        #self.bc_camera_baselink = tf2_ros.StaticTransformBroadcaster()
         self.ts_camera_baselink = TransformStamped()
         self.ts_camera_baselink.header.frame_id = "camera"
         self.ts_camera_baselink.child_frame_id = "at_baselink"
         self.ts_camera_baselink.transform = self.get_tf_msg_camera_baselink()
         self.ts_camera_baselink.header.stamp = self.timestamp
-        self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)  # broadcast camera-baselink
+        #self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)  # broadcast camera-baselink
+
+        self.static_broadcaster.sendTransform([self.ts_map_apriltag, self.ts_camera_baselink])
 
         # initialize camera subscriber and load calibration data
         self.sub_camera_img = rospy.Subscriber("camera_node/image/compressed", CompressedImage, self.cb_camera,
