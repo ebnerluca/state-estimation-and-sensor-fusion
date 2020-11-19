@@ -6,7 +6,7 @@ from duckietown.dtros import DTROS, NodeType
 from std_msgs.msg import String, Float32
 from geometry_msgs.msg import TransformStamped
 #from duckietown_msgs.msg import WheelEncoderStamped
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger, TriggerRequest
 #import yaml
 import tf2_ros
 #from squaternion import Quaternion
@@ -17,7 +17,7 @@ class FusedLocalization(DTROS):
 
     def __init__(self, node_name):
 
-        self.debug = True
+        self.debug = True # TODO
 
         # Initialize DTROS Parent Class
         super(FusedLocalization, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
@@ -40,10 +40,14 @@ class FusedLocalization(DTROS):
         # TODO
 
         # Initialize Subscribers
-        # TODO
+        # none
         
         # Initialize Services
-        # TODO
+        # none
+
+        # Initializes Service Client
+        rospy.wait_for_service(f'/{self.veh_name}/encoder_localization/update_map_frame')
+        self.servclient_update_map_frame = rospy.ServiceProxy(f'/{self.veh_name}/encoder_localization/update_map_frame', Trigger)
 
         self.log("Initialized.")
 
@@ -59,14 +63,14 @@ class FusedLocalization(DTROS):
             try:
                 tf_map_to_encoder_baselink = self.tfBuffer.lookup_transform('map', 'encoder_baselink', rospy.Time(0))
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                rospy.logwarn_throttle(1.0, "Exception caught while looking up transform map -> encoder_baselink. Retrying ...")
+                rospy.logwarn_throttle(1.0, "[FusedLocalization]: Exception caught while looking up transform map -> encoder_baselink. Retrying ...")
                 rate.sleep()
                 continue #jumps back to beginning of while loop
 
             try:
                 tf_map_to_apriltag_baselink = self.tfBuffer.lookup_transform('map', 'at_baselink', rospy.Time(0))
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                rospy.logwarn_throttle(1.0, "Exception caught while looking up transform map -> at_baselink. Retrying ...")
+                rospy.logwarn_throttle(1.0, "[FusedLocalization]: Exception caught while looking up transform map -> at_baselink. Retrying ...")
                 rate.sleep()
                 continue #jumps back to beginning of while loop
 
@@ -77,8 +81,14 @@ class FusedLocalization(DTROS):
                 if (self.debug):
                     rospy.loginfo_throttle(1.0, "[Debug] Using apriltag_localization.")
                 
+                # Updating map frame in encoder localization
+                request = TriggerRequest()
+                response = self.servclient_update_map_frame(request)
+                if not response.success:
+                    self.logwarn("Updating map frame in encoder_localization responded with an error.")
+                    continue
+
                 self.transform_msg = tf_map_to_apriltag_baselink
-                # TODO: update map frame in encoder_localization
                 self.previous_apriltag_stamp = self.transform_msg.header.stamp
 
             else:
@@ -92,7 +102,7 @@ class FusedLocalization(DTROS):
             self.transform_msg.header.frame_id = "map"
             self.transform_msg.child_frame_id = "fused_baselink"
             self.transform_msg.header.stamp = rospy.Time.now()
-            #self.transform_msg.transform.translation.z = 0.0 # project to ground plane
+            self.transform_msg.transform.translation.z = 0.0 # project to ground plane
 
             # Broadcast Transform Message
             self.broadcaster.sendTransform(self.transform_msg)
