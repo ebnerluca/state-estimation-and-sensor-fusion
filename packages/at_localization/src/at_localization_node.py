@@ -72,7 +72,7 @@ class AtLocalizationNode(DTROS):
         CompressedImage, self.cb_camera, queue_size=1)
 
         # debugging
-        self.debug = True
+        self.debug = False # no debugging
         self.pub_at_detection = rospy.Publisher("~image/compressed", CompressedImage, queue_size=1)
 
         self.log("Letsgoooo boizz")
