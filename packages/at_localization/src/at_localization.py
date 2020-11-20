@@ -19,7 +19,7 @@ class AtLocalization:
         self.K_rect, self.mapx, self.mapy = self._init_rectification()
 
         # init apriltag detector
-        self.at_detector = Detector(searchpath=['apriltags'], families='tag36h11', nthreads=1, quad_decimate=1.0,
+        self.at_detector = Detector(searchpath=['apriltags'], families='tag36h11', nthreads=4, quad_decimate=4.0,
                                     quad_sigma=0.0, refine_edges=1, decode_sharpening=0.25, debug=0)
         self.tag_size = tag_size
         self.camera_params = (self.K_rect[0, 0], self.K_rect[1, 1], self.K_rect[0, 2], self.K_rect[1, 2])
