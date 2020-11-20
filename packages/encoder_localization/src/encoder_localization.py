@@ -52,7 +52,7 @@ class EncoderLocalization(DTROS):
         self.transform_msg = TransformStamped() #published in self.run()
         self.transform_msg.header.frame_id = "map" #parent frame
         self.transform_msg.child_frame_id = "encoder_baselink"
-        self.transform_msg.transform.translation.z = 0.0
+        self.transform_msg.transform.translation.z = 0.0 # project to ground
 
         # Initialize TF Broadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
@@ -153,7 +153,7 @@ class EncoderLocalization(DTROS):
         self.y += d * direction[1]
 
         # Estimate theta
-        self.theta = np.mod( np.pi + (self.wheel_distance_right - self.wheel_distance_left) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [0, 2pi]
+        self.theta = np.mod( np.pi + (self.wheel_distance_right - self.wheel_distance_left) / self.baseline, 2.0 * np.pi) #makes sure theta stays between [-2pi, 2pi]
 
 
         # Debug 
