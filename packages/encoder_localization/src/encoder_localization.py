@@ -75,6 +75,12 @@ class EncoderLocalization(DTROS):
         # Initialize Services
         self.serv_reset = rospy.Service(f'/{self.veh_name}/encoder_localization/reset', Trigger, self.reset)
         self.serv_update_map_frame = rospy.Service(f'/{self.veh_name}/encoder_localization/update_map_frame', Trigger, self.update_map_frame)
+        
+        # Broadcast and publish initial transform
+        self.latest_timestamp = rospy.Time.now()
+        self.update_transform()
+        self.broadcaster.sendTransform(self.transform_msg)
+        self.pub_transform.publish(self.transform_msg)
 
         self.log("Initialized.")
 
@@ -83,7 +89,7 @@ class EncoderLocalization(DTROS):
         """
         cali_folder = '/data/config/calibrations/kinematics'
         cali_file = f'{cali_folder}/{self.veh_name}.yaml'
-
+ 
         # Locate Calibration .yaml File
         self.log(f'Looking for calibration {cali_file}')
         if not os.path.isfile(cali_file):
@@ -194,6 +200,8 @@ class EncoderLocalization(DTROS):
 
 
         while not rospy.is_shutdown():
+
+            rospy.loginfo_throttle(2.0, "[encoder_localization]: Waiting for new encoder message ...")
             
             if self.encoder_received: #don't publish if no new encoder message was received
                 
@@ -208,6 +216,7 @@ class EncoderLocalization(DTROS):
                 self.encoder_received = False #prevent publishing duplicate transforms
 
             rate.sleep() # main thread waits here between publishes
+
 
     def update_map_frame(self, request):
         try:
@@ -255,11 +264,17 @@ class EncoderLocalization(DTROS):
         self.initialised_ticks_right = False
         self.wheel_distance_right = 0.0
 
+        # reset position
         self.theta = np.pi
         self.x = 1.0
         self.y = 0.0
 
+        # Broadcast and publish initial transform
+        self.latest_timestamp = rospy.Time.now()
         self.update_transform()
+        self.broadcaster.sendTransform(self.transform_msg)
+        self.pub_transform.publish(self.transform_msg)
+
         self.encoder_received = True
 
         self.log("Reset! (initialized_ticks_left/right = False, wheel_distance_left/right = 0.0, theta = pi, x,y = 0.0)")
