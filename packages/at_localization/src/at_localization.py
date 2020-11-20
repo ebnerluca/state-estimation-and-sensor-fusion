@@ -24,6 +24,7 @@ class AtLocalization:
         self.tag_size = tag_size
         self.camera_params = (self.K_rect[0, 0], self.K_rect[1, 1], self.K_rect[0, 2], self.K_rect[1, 2])
 
+
     def _init_rectification(self):
         """
         Establish rectification mapping.
@@ -33,9 +34,7 @@ class AtLocalization:
         K_rect, roi = cv2.getOptimalNewCameraMatrix(self.pcm.K, self.pcm.D, (w, h), 1.0)
         mapx = np.ndarray(shape=(h, w, 1), dtype='float32')
         mapy = np.ndarray(shape=(h, w, 1), dtype='float32')
-        mapx, mapy = cv2.initUndistortRectifyMap(self.pcm.K, self.pcm.D, self.pcm.R,
-                                                 self.pcm.P, (w, h),
-                                                 cv2.CV_32FC1, mapx, mapy)
+        mapx, mapy = cv2.initUndistortRectifyMap(self.pcm.K, self.pcm.D, self.pcm.R, self.pcm.P, (w, h), cv2.CV_32FC1, mapx, mapy)
         return K_rect, mapx, mapy
 
     def rectify(self, img_raw, interpolation=cv2.INTER_NEAREST):

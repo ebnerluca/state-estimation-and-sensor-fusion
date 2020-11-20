@@ -41,15 +41,15 @@ class AtLocalizationNode(DTROS):
         self.timestamp = rospy.Time.now()
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
-        #self.bc_map_apriltag = tf2_ros.StaticTransformBroadcaster()  # static transform (rigid connection)
+        # construct map to apriltag static transform
         self.ts_map_apriltag = TransformStamped()
         self.ts_map_apriltag.header.frame_id = "map"
         self.ts_map_apriltag.child_frame_id = "apriltag"
         tf_map_apriltag = transformations.translation_matrix([0, 0, at_height])  # 4x4 numpy array
         self.ts_map_apriltag.transform = self.tf_to_msg(tf_map_apriltag)
         self.ts_map_apriltag.header.stamp = self.timestamp
-        #self.bc_map_apriltag.sendTransform(self.ts_map_apriltag)  # broadcast map-apriltag
 
+        # construct apriltag to camera transform
         self.bc_apriltag_camera = tf2_ros.TransformBroadcaster()
         self.ts_apriltag_camera = TransformStamped()
         self.ts_apriltag_camera.header.frame_id = "apriltag"
@@ -57,25 +57,26 @@ class AtLocalizationNode(DTROS):
         self.tf_apriltag_camera = None
         self.has_new_transform = False
 
-        #self.bc_camera_baselink = tf2_ros.StaticTransformBroadcaster()
+        # construct camera to baselink static transform
         self.ts_camera_baselink = TransformStamped()
         self.ts_camera_baselink.header.frame_id = "camera"
         self.ts_camera_baselink.child_frame_id = "at_baselink"
         self.ts_camera_baselink.transform = self.get_tf_msg_camera_baselink()
         self.ts_camera_baselink.header.stamp = self.timestamp
-        #self.bc_camera_baselink.sendTransform(self.ts_camera_baselink)  # broadcast camera-baselink
 
+        # publish static transforms
         self.static_broadcaster.sendTransform([self.ts_map_apriltag, self.ts_camera_baselink])
 
         # initialize camera subscriber and load calibration data
-        self.sub_camera_img = rospy.Subscriber("camera_node/image/compressed", CompressedImage, self.cb_camera,
-                                               queue_size=1)
+        self.sub_camera_img = rospy.Subscriber("camera_node/image/compressed",
+        CompressedImage, self.cb_camera, queue_size=1)
 
         # debugging
         self.debug = True
         self.pub_at_detection = rospy.Publisher("~image/compressed", CompressedImage, queue_size=1)
 
         self.log("Letsgoooo boizz")
+
 
     def run(self):
         """
@@ -90,6 +91,7 @@ class AtLocalizationNode(DTROS):
                 self.bc_apriltag_camera.sendTransform(self.ts_apriltag_camera)  # broadcast apriltag-camera
                 self.has_new_transform = False # reset flag
             r.sleep()
+
 
     def cb_camera(self, msg):
 
@@ -118,6 +120,7 @@ class AtLocalizationNode(DTROS):
         self.timestamp = msg.header.stamp
         self.has_new_transform = True # set flag if new transform was computed
 
+
     @staticmethod
     def tf_to_msg(transform):
         """
@@ -130,6 +133,7 @@ class AtLocalizationNode(DTROS):
         msg.translation = Vector3(*translation)
         msg.rotation = Quaternion(*rotation)
         return msg
+
 
     def get_tf_msg_camera_baselink(self):
         """
@@ -144,6 +148,7 @@ class AtLocalizationNode(DTROS):
         tf_camera_baselink = np.linalg.inv(tf_baselink_camera)
         return self.tf_to_msg(tf_camera_baselink)
 
+
     def set_tf_apriltag_camera(self, R, t):
         # detected tf: camera-apriltag, camera frame has wrong orientation
         tf_detected = np.zeros((4, 4), dtype=np.float64)
@@ -157,6 +162,7 @@ class AtLocalizationNode(DTROS):
         tf_camera_apriltag = camera_rot @ tf_detected @ apriltag_rot  # Tcc' * Tc'a' * Ta'a = Tca
 
         self.tf_apriltag_camera = np.linalg.inv(tf_camera_apriltag)  # Tac
+
 
     def read_image(self, msg_image):
         """
@@ -173,6 +179,7 @@ class AtLocalizationNode(DTROS):
             self.log(e)
             return []
 
+
     def read_yaml_file(self, fname):
         """
             Reads the 'fname' yaml file and returns a dictionary with its input.
@@ -182,13 +189,14 @@ class AtLocalizationNode(DTROS):
         """
         with open(fname, 'r') as in_file:
             try:
-                yaml_dict = yaml.load(in_file)
+                yaml_dict = yaml.load(in_file, Loader=yaml.Loader)
                 return yaml_dict
             except yaml.YAMLError as exc:
                 self.log("YAML syntax error. File: %s fname. Exc: %s"
                          % (fname, exc), type='fatal')
                 rospy.signal_shutdown()
                 return
+
 
     @staticmethod
     def camera_info_from_yaml(calib_data):
@@ -207,6 +215,7 @@ class AtLocalizationNode(DTROS):
         cam_info.P = calib_data['projection_matrix']['data']
         cam_info.distortion_model = calib_data['distortion_model']
         return cam_info
+
 
     @staticmethod
     def visualize_at_detection(img, tags):
