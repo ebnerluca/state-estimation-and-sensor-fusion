@@ -29,11 +29,12 @@ then
     echo "default.sh: Launching fused_localization package!"
     dt-exec roslaunch fused_localization fused_localization.launch veh:="$VEHICLE_NAME"
 else
-    echo "default.sh: Error: Please input a valid package to launch as the value of LAUNCH_PACKAGE in the form 
+    echo "default.sh: No package to launch specified. To launch a specific package, change the value of LAUNCH_PACKAGE with the command
     'dts devel run -- --env LAUNCH_PACKAGE=<package>'
 where <package> is encoder_localization, at_localization or fused_localization.
-You entered: $LAUNCH_PACKAGE"
-    exit 0
+You entered: $LAUNCH_PACKAGE
+Running fused_localisation as default."
+    dt-exec roslaunch fused_localization fused_localization.launch veh:="$VEHICLE_NAME"
 fi
 
 # ----------------------------------------------------------------------------
