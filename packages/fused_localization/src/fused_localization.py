@@ -37,13 +37,9 @@ class FusedLocalization(DTROS):
         self.previous_apriltag_stamp = rospy.Time()
 
         # Initialize Publishers
-        # TODO
-
-        # Initialize Subscribers
-        # none
-        
-        # Initialize Services
-        # none
+        pub_topic = f'/{self.veh_name}/fused_localization/transform'
+        self.pub_transform = rospy.Publisher(
+            pub_topic, TransformStamped, queue_size=10)
 
         # Initializes Service Client
         rospy.wait_for_service(f'/{self.veh_name}/encoder_localization/update_map_frame')
@@ -106,6 +102,7 @@ class FusedLocalization(DTROS):
 
             # Broadcast Transform Message
             self.broadcaster.sendTransform(self.transform_msg)
+            self.pub_transform.publish(self.transform_msg)
 
             rate.sleep()
 
