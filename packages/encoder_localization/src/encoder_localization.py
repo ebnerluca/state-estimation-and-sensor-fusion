@@ -82,6 +82,10 @@ class EncoderLocalization(DTROS):
         self.broadcaster.sendTransform(self.transform_msg)
         self.pub_transform.publish(self.transform_msg)
 
+        # initialise TF listener for knowledge about past services
+        self.tfBuffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tfBuffer)
+
         self.log("Initialized.")
 
     def get_calib_params(self):
@@ -219,6 +223,8 @@ class EncoderLocalization(DTROS):
 
 
     def update_map_frame(self, request):
+
+        # get current transform from encoder to baselink
         try:
             tf_map_to_encoder_baselink = self.tfBuffer.lookup_transform('map', 'at_baselink', rospy.Time(0))
             
@@ -230,6 +236,24 @@ class EncoderLocalization(DTROS):
             message="Exception caught while looking up transform map -> apriltag_baselink."
             )
 
+        # get transform which may have been recorded by encoder since image was
+        # first captured
+        # first get the last map transform (used to find time)
+        tf_map_to_apriltag_baselink = self.tfBuffer.lookup_transform('map', 'at_baselink', rospy.Time(0))
+        self.log(f'{tf_map_to_apriltag_baselink}')
+        apriltag_received = tf_map_to_apriltag_baselink.header.stamp
+        self.log(apriltag_received)
+        # now find transform from encoder_baselink in past to that in present
+        try:
+            tf_from_past = self.tfBuffer.lookup_transform_full('encoder_baselink', apriltag_received, 'encoder_baselink', rospy.Time(0), 'map')
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            rospy.logwarn_throttle(1.0, "[FusedLocalization]: Exception caught while looking up transform past encoder_baselink -> encoder_baselink.")
+            return TriggerResponse(success=False, message="Transform from past failed.")
+
+
+        self.log(f'From past:\n {tf_from_past}')
+
+
         self.initialised_ticks_left = False
         self.wheel_distance_left = 0.0
 
@@ -240,12 +264,30 @@ class EncoderLocalization(DTROS):
         self.latest_timestamp = rospy.Time.now() # rather use Time.now() to avoid tf buffer warnings
 
         # Assumption: z = 0
-        self.x = tf_map_to_encoder_baselink.transform.translation.x
-        self.y = tf_map_to_encoder_baselink.transform.translation.y
+        self.x = tf_map_to_encoder_baselink.transform.translation.x + tf_from_past.transform.translation.x
+        self.y = tf_map_to_encoder_baselink.transform.translation.y + tf_from_past.transform.translation.y
+        self.log(self.x)
+        self.log(self.y)
 
         # Assumption: axis of rotation is the z axis (planar robot)
-        q = Quaternion(tf_map_to_encoder_baselink.transform.rotation.w, tf_map_to_encoder_baselink.transform.rotation.x, tf_map_to_encoder_baselink.transform.rotation.y, tf_map_to_encoder_baselink.transform.rotation.z)
+        q_map_to_encoder_baselink = Quaternion(tf_map_to_encoder_baselink.transform.rotation.w, 
+        tf_map_to_encoder_baselink.transform.rotation.x, 
+        tf_map_to_encoder_baselink.transform.rotation.y, 
+        tf_map_to_encoder_baselink.transform.rotation.z)
+        self.log(f'q_map: {q_map_to_encoder_baselink}')
+
+        q_from_past = Quaternion(tf_from_past.transform.rotation.w, 
+        tf_from_past.transform.rotation.x, 
+        tf_from_past.transform.rotation.y, 
+        tf_from_past.transform.rotation.z)
+        self.log(f'q_from_past: {q_from_past}')
+
+        # combine rotations to account for lag
+        q = q_from_past * q_map_to_encoder_baselink
+        self.log(f'q: {q}')
+
         self.theta = q.angle
+        self.log(self.theta)
 
         self.update_transform()
         self.encoder_received = True

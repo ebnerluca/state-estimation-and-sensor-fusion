@@ -72,7 +72,8 @@ class FusedLocalization(DTROS):
 
             
             # Select relevant Transform
-            if((tf_map_to_apriltag_baselink.header.stamp - self.previous_apriltag_stamp).to_sec() > 0.0): # Check if apriltag transforms is newer than last one
+            current_apriltag_stamp = tf_map_to_apriltag_baselink.header.stamp
+            if((current_apriltag_stamp - self.previous_apriltag_stamp).to_sec() > 0.0): # Check if apriltag transforms is newer than last one
 
                 if (self.debug):
                     rospy.loginfo_throttle(1.0, "[Debug] Using apriltag_localization.")
